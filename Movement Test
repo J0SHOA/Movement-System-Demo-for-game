@@ -1,0 +1,153 @@
+
+using NUnit.Framework.Internal.Filters;
+using System;
+using System.Collections;
+using System.Runtime.CompilerServices;
+using Unity.VisualScripting;
+using UnityEngine;
+using UnityEngine.InputSystem;
+using System.Threading.Tasks;
+using System.Runtime.InteropServices;
+
+
+
+public class PlayerMovement : MonoBehaviour
+{
+    private SpriteRenderer SR;
+    public CameraFollow CF;
+    public float MoveSpeed = 5f;
+    public float SlideSpeed = 10f;
+    public float JumpPower = 7f;
+    public float Xvalue;
+    public Boolean Cooldown = false;
+    public Boolean Grounded = false;
+    Transform Transform;
+    Rigidbody2D Rigidbody;
+    InputAction MoveAction;
+    InputAction SlideAction;
+    InputAction CrouchAction;
+    Collider2D Collider;
+    // Start is called once before the first execution of Update after the MonoBehaviour is created
+    void Start()
+    {
+
+        //Finding Objects/Components
+        GameObject C = GameObject.Find("Main Camera");
+        if (C != null)
+        {
+            CF = C.GetComponent<CameraFollow>();
+        }
+        MoveAction = InputSystem.actions.FindAction("Move");
+        CrouchAction = InputSystem.actions.FindAction("Crouch");
+        SlideAction = InputSystem.actions.FindAction("Sliding");
+        Rigidbody = GetComponent<Rigidbody2D>();
+        SR = GetComponent<SpriteRenderer>();
+        Collider = GetComponent<Collider2D>();
+        Transform = GetComponent<Transform>();
+    }
+
+    // Update is called once per frame
+    async Task Update()
+    {
+
+        //Movment
+        Vector2 MoveValue = MoveAction.ReadValue<Vector2>();
+        Rigidbody.linearVelocity = new Vector2(MoveValue.x * MoveSpeed, Rigidbody.linearVelocity.y);
+        //Sliding
+        if (MoveValue.x == -1 || MoveValue.x == 1)
+        { 
+            if (Cooldown == false)
+            {
+                if (CrouchAction.IsPressed() == false)
+                {
+                    if (SlideAction.IsPressed())
+                    {
+                        transform.localScale = new Vector3(1, 1, 1);
+                        Xvalue = MoveValue.x;
+                        Transform.rotation = Quaternion.Euler(0, 0, 90);
+                        while (SlideAction.IsPressed() == true) 
+                        {
+                         Rigidbody.linearVelocity = new Vector2(Xvalue * SlideSpeed, Rigidbody.linearVelocity.y);
+                            if (SlideSpeed > 0)
+                            {
+                                SlideSpeed = SlideSpeed - 0.002f;
+                            }
+                            await Task.Delay(5);
+                        }
+                        Cooldown = true;
+                    }
+                }
+            }
+        }
+        if (SlideAction.IsPressed() == false)
+        {
+            Invoke("Cooldowns", 1f);
+            Transform.rotation = Quaternion.Euler(0, 0, 0);
+            SlideSpeed = 11f;
+        }
+
+        //Fixed Jump Mechaninc
+        if (Grounded == true)
+        {
+            Rigidbody.linearVelocity = new Vector2(Rigidbody.linearVelocity.x, MoveValue.y * JumpPower);
+        }
+        //Crouching
+        if (CrouchAction.IsPressed())   
+        {
+            if (SlideAction.IsPressed() == false)
+            {
+                transform.localScale = new Vector3(1, 0.5f, 1);
+                MoveSpeed = 2.5f;
+            } 
+        }
+        if (CrouchAction.IsPressed()==false)
+        {
+            transform.localScale = new Vector3(1, 1, 1);
+            MoveSpeed = 5;
+        }
+
+
+        //Camera/oritentation
+        if (MoveValue.x > 0)
+        {
+            SR.flipX = false;
+            CF.Xoffset = MoveValue.x;
+        }
+        if (MoveValue.x < 0)
+        {
+            SR.flipX = true;
+            CF.Xoffset = MoveValue.x;
+        }
+    }
+
+
+    //Sliding cooldown
+    private void Cooldowns()
+    {
+        if (SlideAction.IsPressed() == false)
+        {
+            Cooldown = false;
+        }
+        if (SlideAction.IsPressed() == true)
+        {
+            Cooldown = true;
+        }
+    }
+  
+    // Collision for ground
+    private void OnCollisionEnter2D(Collision2D other)
+    {
+        if (other.gameObject.CompareTag("Ground"))
+        {
+            Grounded = true;
+        }
+
+    }
+    private void OnCollisionExit2D(Collision2D other)
+    {
+        if (other.gameObject.CompareTag("Ground"))
+        {
+            Grounded = false;
+        }
+    }
+}
